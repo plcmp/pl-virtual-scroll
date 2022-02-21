@@ -1,0 +1,29 @@
+{
+    "name": "@plcmp/pl-virtual-scroll",
+    "version": "0.0.1",
+    "description": "Component for lazy list render.",
+    "main": "pl-virtual-scroll.js",
+    "repository": {
+        "url": "https://github.com/plcmp/pl-virtual-scroll.git"
+    },
+    "license": "MIT",
+    "type": "module",
+    "author": {
+        "name": "Dmitry Boikov",
+        "email": "boikovdv@gmail.com"
+    },
+    "contributors": [
+        {
+            "name": "Azat Yamalov",
+            "email": "boikovdv@live.com"
+        },
+        {
+            "name": "Andrey Maksimov",
+            "email": "andrmaxmail@gmail.com"
+        }
+    ],
+    "dependencies": {
+        "polylib": "^1.0.0",
+        "@plcmp/utils": "^0.0.1"
+    }
+}
