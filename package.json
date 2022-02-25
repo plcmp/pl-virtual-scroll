@@ -1,6 +1,6 @@
 {
     "name": "@plcmp/pl-virtual-scroll",
-    "version": "0.0.1",
+    "version": "0.0.2",
     "description": "Component for lazy list render.",
     "main": "pl-virtual-scroll.js",
     "repository": {
@@ -24,6 +24,6 @@
     ],
     "dependencies": {
         "polylib": "^1.0.0",
-        "@plcmp/utils": "^0.0.1"
+        "@plcmp/utils": "^0.0.2"
     }
 }
