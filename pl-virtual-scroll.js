@@ -72,6 +72,7 @@ class PlVirtualScroll extends PlElement {
                     if (el && rest.length > 0) {
                         let path = [this.as, ...rest].join('.');
                         el.ti.applyEffects({ ...mutation, path });
+                        if (this.items[el.index] instanceof PlaceHolder) this.items.load?.(this.items[el.index])
                     }
                 } else {
                     setTimeout(() => this.render(), 0);
@@ -86,6 +87,7 @@ class PlVirtualScroll extends PlElement {
                 //refresh all PHY if they can be affected
                 this.phyPool.forEach(i => {
                     if (i.index !== null && i.index >= spliceIndex && i.index < this.items.length) {
+                        if (this.items[i.index] instanceof PlaceHolder) this.items.load?.(this.items[i.index]);
                         i.ctx.replace(this.items[i.index]);
                         i.ti.ctx = i.ctx;
                         i.ti.applyEffects();
