@@ -223,8 +223,7 @@ class PlVirtualScroll extends PlElement {
         ti._hti = this._hti;
         ctx._ti = ti;
         ti.attach({ ...ctx, root: this.canvas ?? this.$.vsCanvas }, undefined, this._pti);
-        let rect = calcNodesRect(ti._nodes);
-        let h = rect.height;
+        let h = this.elementHeight ??  calcNodesRect(ti._nodes).height;
 
         return { ctx, ti, h };
     }
