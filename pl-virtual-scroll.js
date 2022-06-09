@@ -1,5 +1,7 @@
-import { html, PlElement, TemplateInstance, createContext } from "polylib";
+import { html, PlElement, TemplateInstance } from "polylib";
 import { PlaceHolder } from "@plcmp/utils";
+import {ContextMixin} from "polylib/engine/v1/ctx.js";
+import {normalizePath} from "polylib/common.js";
 
 /** @typedef VirtualScrollItem
  * @property {LightDataContext} ctx
@@ -20,7 +22,7 @@ class PlVirtualScroll extends PlElement {
         renderedStart: { type: Number, value: 0 },
         renderedCount: { type: Number, value: 0 },
         phyItems: { type: Array, value: () => [] },
-        canvas: { type: Object }
+        canvas: { type: Object },
     }
     static template = html`
         <style>
@@ -30,48 +32,49 @@ class PlVirtualScroll extends PlElement {
                 display: block;
             }
 
-            pl-virtual-scroll #vsCanvas {
+            pl-virtual-scroll #vs-canvas {
                 position: relative;
                 /*noinspection CssUnresolvedCustomProperty*/
                 contain: strict;
             }
 
-            .vsItem {
+            .vs-item {
                 position: absolute;
                 left: 0;
                 top: 0;
+                width: 100%;
             }
         </style>
-        <div id="vsCanvas">
-        </div>
+        <div id="vs-canvas"></div>
     `;
-
+    static repTpl = html`<template d:repeat="{{phyItems}}" d:as="[[as]]"><div class="vs-item">[[sTpl]]</div></template>`;
     connectedCallback() {
         super.connectedCallback();
-        let canvas = this.canvas ?? this.$.vsCanvas;
-        canvas.parentNode.addEventListener('scroll', this.onScroll.bind(this));
-        let tpl = this.querySelector('template');
-        this.oTpl = tpl;
-        this.rTpl = tpl.tpl;//new Template(`<div class="vsItem">${tpl.innerHTML}</div>`);
-        this._pti = tpl._pti;
-        this._hti = tpl._hti;
-        this.pctx = tpl._pti?.ctx;
+
+        this.canvas = this.canvas ?? this.$.vsCanvas;
+        this.canvas.parentNode.addEventListener('scroll', e => this.onScroll(e) );
+
+        this.sTpl = [...this.childNodes].find( n => n.nodeType === document.COMMENT_NODE && n.textContent.startsWith('tpl:'))?._tpl;
+
+       /* let ti = new TemplateInstance(PlVirtualScroll.repTpl);
+        ti.attach(canvas, this, this);
+*/
         /* render items if them already assigned */
-        if (Array.isArray(this.items) && this.items.length > 0) {
+        /*if (Array.isArray(this.items) && this.items.length > 0) {
             this.render();
-        }
+        }*/
     }
     _dataChanged(data, old, mutation) {
         // set microtask, element may be not inserted in dom tree yet,
         // but we need to know viewport height to render
-        let [, index, ...rest] = mutation.path.split('.');
+        let [, index, ...rest] = normalizePath(mutation.path);
         switch (mutation.action) {
             case 'upd':
                 if (index !== undefined && +index >= 0) {
                     let el = this.phyPool.find(i => i.index === +index);
                     if (el && rest.length > 0) {
                         let path = [this.as, ...rest].join('.');
-                        el.ti.applyEffects({ ...mutation, path });
+                        el.ctx.applyEffects({ ...mutation, path });
                         if (this.items[el.index] instanceof PlaceHolder) this.items.load?.(this.items[el.index])
                     }
                 } else {
@@ -89,9 +92,8 @@ class PlVirtualScroll extends PlElement {
                     if (i.index !== null && i.index >= spliceIndex && i.index < this.items.length) {
                         if (this.items[i.index] instanceof PlaceHolder) this.items.load?.(this.items[i.index]);
                         i.ctx.replace(this.items[i.index]);
-                        i.ti.ctx = i.ctx;
-                        i.ti.applyEffects();
-                        i.ti.applyBinds();
+                        i.ctx.applyEffects();
+                        i.ctx._ti.applyBinds();
                     } else if (i.index >= this.items.length) {
                         i.index = null;
                     }
@@ -107,9 +109,7 @@ class PlVirtualScroll extends PlElement {
      * @param {Boolean} [scroll] - render for new scroll position
      */
     render(scroll) {
-        // detect window height
-        // detect new position,
-        let canvas = this.canvas ?? this.$.vsCanvas;
+        let canvas = this.canvas;
         let offset = canvas.parentNode.scrollTop;
         let height = canvas.parentNode.offsetHeight;
         if (height === 0 || !this.items) return;
@@ -130,12 +130,6 @@ class PlVirtualScroll extends PlElement {
         let used = [], unused = [];
         this.phyPool.forEach(x => {
             if (x.index !== null && shadowBegin <= x.index && x.index <= shadowEnd && x.index < this.items.length) {
-                if (x.ctx.model !== this.items[x.index]) {
-                    x.ctx.replace(this.items[x.index]);
-                    x.ti.ctx = x.ctx;
-                    x.ti.applyBinds();
-                    x.ti.applyEffects();
-                }
                 used.push(x);
             } else {
                 unused.push(x);
@@ -167,7 +161,7 @@ class PlVirtualScroll extends PlElement {
 
         unused.forEach(u => {
             u.index = null;
-            u.ti._nodes.forEach(i => { if (i.style) i.style.transform = `translateY(-100%)`; });
+            u.ctx._ti._nodes.forEach(i => { if (i.style) i.style.transform = `translateY(-100%)`; });
         });
 
         // fill .5 height window in background
@@ -202,14 +196,13 @@ class PlVirtualScroll extends PlElement {
         target.index = index;
         if (p_item) {
             p_item.ctx.replace(this.items[index])
-            p_item.ti.ctx = p_item.ctx;
-            p_item.ti.applyBinds();
-            p_item.ti.applyEffects();
+            p_item.ctx._ti.applyBinds();
+            p_item.ctx.applyEffects();
         } else {
             this.phyPool.push(target);
         }
         target.offset = typeof (prev) == 'number' ? prev : (backward ? prev.offset - target.h : prev.offset + prev.h);
-        target.ti._nodes.forEach(n => {
+        target.ctx._ti._nodes.forEach(n => {
             if (n.style) {
                 n.style.transform = `translateY(${target.offset}px)`;
                 n.style.position = 'absolute';
@@ -218,17 +211,46 @@ class PlVirtualScroll extends PlElement {
         return target;
     }
     createNewItem(v) {
-        let ctx = createContext(this, v, this.as)
-        let ti = new TemplateInstance(this.rTpl);
-        ti._hti = this._hti;
-        ctx._ti = ti;
-        ti.attach({ ...ctx, root: this.canvas ?? this.$.vsCanvas }, undefined, this._pti);
-        let h = this.elementHeight ??  calcNodesRect(ti._nodes).height;
+        if (!this.sTpl) return;
+        let inst = new TemplateInstance(this.sTpl);
 
-        return { ctx, ti, h };
+        let ctx = new RepeatItem(v, this.as, (ctx, m) => this.onItemChanged(ctx, m) );
+        ctx._ti = inst
+        inst.attach(this.canvas, undefined, [ctx, ...this.sTpl._hctx ]);
+        let h = this.elementHeight ??  calcNodesRect(inst._nodes).height;
+
+        return { ctx, h };
     }
     onScroll() {
         this.render(true);
+    }
+    onItemChanged(ctx, m) {
+        // skip replace data call
+        if (!m) return;
+        let ind = this.items.findIndex( i => i === ctx[this.as]);
+        if (ind < 0) console.warn('repeat item not found');
+        if (m.path === this.as) {
+            this.set(['items', ind], m.value, m.wmh);
+        } else {
+            this.forwardNotify(m,this.as, 'items.'+ind);
+        }
+
+    }
+}
+
+class RepeatItem extends ContextMixin(EventTarget) {
+    constructor(item, as, cb) {
+        super();
+        this.as = as;
+        this[as] = item;
+        this.addEffect(as, m => cb(this, m))
+    }
+    get model() {
+        return this[this.as];
+    }
+    replace(v) {
+        this[this.as] = v;
+        this.wmh = {};
     }
 }
 
