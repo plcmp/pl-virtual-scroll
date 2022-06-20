@@ -44,8 +44,11 @@ class PlVirtualScroll extends PlElement {
                 top: 0;
                 width: 100%;
             }
+            #vsCanvas {
+                position: relative;
+            }
         </style>
-        <div id="vs-canvas"></div>
+        <div id="vsCanvas"></div>
     `;
     static repTpl = html`<template d:repeat="{{phyItems}}" d:as="[[as]]"><div class="vs-item">[[sTpl]]</div></template>`;
     connectedCallback() {
