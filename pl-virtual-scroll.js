@@ -56,8 +56,9 @@ class PlVirtualScroll extends PlElement {
 
         this.canvas = this.canvas ?? this.$.vsCanvas;
         this.canvas.parentNode.addEventListener('scroll', e => this.onScroll(e) );
-
-        this.sTpl = [...this.childNodes].find( n => n.nodeType === document.COMMENT_NODE && n.textContent.startsWith('tpl:'))?._tpl;
+        let tplEl = [...this.childNodes].find( n => n.nodeType === document.COMMENT_NODE && n.textContent.startsWith('tpl:'));
+        this.sTpl = tplEl?._tpl;
+        this._hctx = tplEl?._hctx;
 
        /* let ti = new TemplateInstance(PlVirtualScroll.repTpl);
         ti.attach(canvas, this, this);
@@ -219,7 +220,7 @@ class PlVirtualScroll extends PlElement {
 
         let ctx = new RepeatItem(v, this.as, (ctx, m) => this.onItemChanged(ctx, m) );
         ctx._ti = inst
-        inst.attach(this.canvas, undefined, [ctx, ...this.sTpl._hctx ]);
+        inst.attach(this.canvas, undefined, [ctx, ...this._hctx ]);
         let h = this.elementHeight ??  calcNodesRect(inst._nodes).height;
 
         return { ctx, h };
