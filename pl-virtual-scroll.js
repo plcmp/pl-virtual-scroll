@@ -165,7 +165,7 @@ class PlVirtualScroll extends PlElement {
 
         unused.forEach(u => {
             u.index = null;
-            u.ctx._ti._nodes.forEach(i => { if (i.style) i.style.transform = `translateY(-100%)`; });
+            u.ctx._ti._nodes.forEach(i => { if (i.style) i.style.transform = `translateY(-1000px)`; });
         });
 
         // fill .5 height window in background
