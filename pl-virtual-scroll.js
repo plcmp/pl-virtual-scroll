@@ -102,7 +102,7 @@ class PlVirtualScroll extends PlElement {
                         i.index = null;
                     }
                 });
-                this.render();
+                setTimeout(() => this.render(), 0);
 
                 break;
         }
