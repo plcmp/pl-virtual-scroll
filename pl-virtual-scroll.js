@@ -181,9 +181,9 @@ class PlVirtualScroll extends PlElement {
 
 
         if (this.elementHeight && this.items.length)
-            canvas.style.setProperty('max-height', this.elementHeight * this.items.length + 'px')
+            canvas.style.setProperty('height', this.elementHeight * this.items.length + 'px')
         else
-            canvas.style.setProperty('max-height', 0)
+            canvas.style.setProperty('height', 0)
     }
 
     /**
