@@ -74,7 +74,7 @@ class PlVirtualScroll extends PlElement {
         let [, index, ...rest] = normalizePath(mutation.path);
         switch (mutation.action) {
             case 'upd':
-                if(mutation.oldValue?.length == mutation.value?.length) {
+                if(Array.isArray(mutation.value) && Array.isArray(mutation.oldValue) && mutation.oldValue.length == mutation.value.length) {
                     this.phyPool.forEach(i => {
                         i.ctx.replace(this.items[i.index]);
                         i.ctx.applyEffects();
