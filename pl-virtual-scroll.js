@@ -94,21 +94,29 @@ class PlVirtualScroll extends PlElement {
                 break;
             case 'splice':
                 let { index: spliceIndex } = mutation;
+                // if mutation is not root try to apply effects to childs (need when pushing to arrya inside array)
+                if(rest.length > 0) {
+                    let path = [this.as, ...rest].join('.');
+                    this.phyPool[index].ctx.applyEffects({ ...mutation, path });
+                } else {
+                    this.phyPool.forEach(i => {
+                        if (i.index !== null && i.index >= spliceIndex && i.index < this.items.length) {
+                            if (this.items[i.index] instanceof PlaceHolder) this.items.load?.(this.items[i.index]);
+                            
+                            i.ctx.replace(this.items[i.index]);
+                            i.ctx.applyEffects();
+                            i.ctx._ti.applyBinds();
+                        } else if (i.index >= this.items.length) {
+                            i.index = null;
+                        }
+                    });
+                }
 
                 //TODO: add more Heuristic to scroll list if visible elements that not changed? like insert rows before
                 //      visible area
 
                 //refresh all PHY if they can be affected
-                this.phyPool.forEach(i => {
-                    if (i.index !== null && i.index >= spliceIndex && i.index < this.items.length) {
-                        if (this.items[i.index] instanceof PlaceHolder) this.items.load?.(this.items[i.index]);
-                        i.ctx.replace(this.items[i.index]);
-                        i.ctx.applyEffects();
-                        i.ctx._ti.applyBinds();
-                    } else if (i.index >= this.items.length) {
-                        i.index = null;
-                    }
-                });
+                
                 setTimeout(() => this.render(), 0);
 
                 break;
