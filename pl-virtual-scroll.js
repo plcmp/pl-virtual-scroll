@@ -81,6 +81,12 @@ class PlVirtualScroll extends PlElement {
                         i.ctx._ti.applyBinds();
                     });
                 }
+
+                // Временный решение, занулям физический пулл в случаях когда значения массива приходят внутри объектов 
+                // Исправить в будущем на более умную замену значений
+                if(Array.isArray(mutation.value) && Array.isArray(mutation.oldValue) && mutation.oldValue.length != mutation.value.length) {
+                    this.phyPool = [];
+                }
                 if (index !== undefined && +index >= 0) {
                     let el = this.phyPool.find(i => i.index === +index);
                     if (el && rest.length > 0) {
@@ -225,6 +231,7 @@ class PlVirtualScroll extends PlElement {
             if (n.style) {
                 n.style.transform = `translateY(${target.offset}px)`;
                 n.style.position = 'absolute';
+                n.setAttribute('virtualOffser', target.offset);
             }
         });
         return target;
