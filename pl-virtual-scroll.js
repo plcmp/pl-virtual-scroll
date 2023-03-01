@@ -74,19 +74,20 @@ class PlVirtualScroll extends PlElement {
         let [, index, ...rest] = normalizePath(mutation.path);
         switch (mutation.action) {
             case 'upd':
-                if(Array.isArray(mutation.value) && Array.isArray(mutation.oldValue) && mutation.oldValue.length == mutation.value.length) {
+                if(mutation.path == 'items' && Array.isArray(mutation.value) && Array.isArray(mutation.oldValue)) {
                     this.phyPool.forEach(i => {
-                        i.ctx.replace(this.items[i.index]);
-                        i.ctx.applyEffects();
-                        i.ctx._ti.applyBinds();
+                        if (i.index !== null && i.index < this.items.length) {
+                            if (this.items[i.index] instanceof PlaceHolder) this.items.load?.(this.items[i.index]);
+
+                            i.ctx.replace(this.items[i.index]);
+                            i.ctx.applyEffects();
+                            i.ctx._ti.applyBinds();
+                        } else if (i.index >= this.items.length) {
+                            i.index = null;
+                        }
                     });
                 }
 
-                // Временный решение, занулям физический пулл в случаях когда значения массива приходят внутри объектов 
-                // Исправить в будущем на более умную замену значений
-                if(Array.isArray(mutation.value) && Array.isArray(mutation.oldValue) && mutation.oldValue.length != mutation.value.length) {
-                    this.phyPool = [];
-                }
                 if (index !== undefined && +index >= 0) {
                     let el = this.phyPool.find(i => i.index === +index);
                     if (el && rest.length > 0) {
