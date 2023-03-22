@@ -22,8 +22,7 @@ class PlVirtualScroll extends PlElement {
         renderedStart: { type: Number, value: 0 },
         renderedCount: { type: Number, value: 0 },
         phyItems: { type: Array, value: () => [] },
-        canvas: { type: Object },
-        lastItem: { type: Object }
+        canvas: { type: Object }
     }
     static template = html`
         <style>
@@ -200,10 +199,6 @@ class PlVirtualScroll extends PlElement {
             canvas.style.setProperty('height', this.elementHeight * this.items.length + 'px')
         else
             canvas.style.setProperty('height', 0)
-
-        const maxOffset = Math.max(...this.phyPool.map(x => x.offset));
-        const last = this.phyPool.find(x => x.offset === maxOffset);
-        this.lastItem = last;
     }
 
     /**
