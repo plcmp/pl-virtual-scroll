@@ -148,8 +148,8 @@ class PlVirtualScroll extends PlElement {
         /*let first = Math.floor(offset / this.elementHeight);
         let last = Math.ceil((offset+height) / this.elementHeight);*/
         // Reset scroll position if update data smaller than current visible index
-        if (!scroll && this.items.length < (offset + height * 1.5) / this.elementHeight) {
-            canvas.parentNode.scrollTop = 0;
+        if (!scroll && this.items.length < Math.floor((offset + height) / this.elementHeight)) {
+            canvas.parentNode.scrollTop = this.items.length * this.elementHeight - height;
         }
         let shadowEnd = Math.min(this.items.length, Math.ceil((offset + height * 1.5) / this.elementHeight));
         let shadowBegin = Math.max(0, Math.floor(Math.min((offset - height / 2) / this.elementHeight, shadowEnd - height * 2 / this.elementHeight)));
