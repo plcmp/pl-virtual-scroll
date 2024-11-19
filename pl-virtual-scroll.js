@@ -4,18 +4,22 @@ import {ContextMixin} from "polylib/engine/v1/ctx.js";
 import {normalizePath} from "polylib/common.js";
 
 /** @typedef VirtualScrollItem
- * @property {LightDataContext} ctx
- * @property {TemplateInstance} ti
- * @property {Number} index
- * @property {Number} h - height of rendered item
+ * @property { RepeatItem } ctx
+ * @property { TemplateInstance } ti
+ * @property { number } index
+ * @property { number } h - height of rendered item
+ * @property { boolean } unused
+ * @property { number } offset
 */
 
 class PlVirtualScroll extends PlElement {
     /** @type VirtualScrollItem[]*/
     phyPool = [];
+
     constructor() {
         super({ lightDom: true });
     }
+
     static properties = {
         as: { value: 'item' },
         items: { type: Array, observer: '_dataChanged' },
@@ -51,6 +55,7 @@ class PlVirtualScroll extends PlElement {
         <div id="vsCanvas"></div>
     `;
     static repTpl = html`<template d:repeat="{{phyItems}}" d:as="[[as]]"><div class="vs-item">[[sTpl]]</div></template>`;
+
     connectedCallback() {
         super.connectedCallback();
 
@@ -68,13 +73,14 @@ class PlVirtualScroll extends PlElement {
             this.render();
         }*/
     }
+
     _dataChanged(data, old, mutation) {
         // set microtask, element may be not inserted in dom tree yet,
         // but we need to know viewport height to render
         let [, index, ...rest] = normalizePath(mutation.path);
         switch (mutation.action) {
             case 'upd':
-                if(mutation.path == 'items' && Array.isArray(mutation.value) && Array.isArray(mutation.oldValue)) {
+                if(mutation.path === 'items' && Array.isArray(mutation.value) && Array.isArray(mutation.oldValue)) {
                     this.phyPool.forEach(i => {
                         if (i.index !== null && i.index < this.items.length) {
                             if (this.items[i.index] instanceof PlaceHolder) this.items.load?.(this.items[i.index]);
@@ -135,77 +141,138 @@ class PlVirtualScroll extends PlElement {
      * @param {Boolean} [scroll] - render for new scroll position
      */
     render(scroll) {
-        let canvas = this.canvas;
-        let offset = canvas.parentNode.scrollTop;
-        let height = canvas.parentNode.offsetHeight;
-        if (height === 0 || !this.items) return;
+        const canvas = this.canvas;
+        let visibleStart = canvas.parentNode.scrollTop,
+            height = canvas.parentNode.offsetHeight,
+            visibleEnd = visibleStart + height,
+            shadowStart = visibleStart - height/2,
+            shadowEnd = visibleEnd + height/2;
 
-        if (!this.elementHeight && this.items.length > 0) {
-            let el = this.renderItem(0, undefined, 0);
-            this.elementHeight = el.h;
-        }
-        /*let first = Math.floor(offset / this.elementHeight);
-        let last = Math.ceil((offset+height) / this.elementHeight);*/
-        // Reset scroll position if update data smaller than current visible index
-        if (!scroll && this.items.length < Math.floor((offset + height) / this.elementHeight)) {
-            canvas.parentNode.scrollTop = this.items.length * this.elementHeight - height;
-        }
-        let shadowEnd = Math.min(this.items.length, Math.ceil((offset + height * 1.5) / this.elementHeight));
-        let shadowBegin = Math.max(0, Math.floor(Math.min((offset - height / 2) / this.elementHeight, shadowEnd - height * 2 / this.elementHeight)));
+        // cancel render on invisible canvas or empty data
+        if (height === 0 || !this.items || this.items.length === 0) return;
 
-        let used = [], unused = [];
-        this.phyPool.forEach(x => {
-            if (x.index !== null && shadowBegin <= x.index && x.index <= shadowEnd && x.index < this.items.length) {
-                used.push(x);
-            } else {
-                unused.push(x);
-            }
-        });
+        let used = this.phyPool
+            .filter(i => {
+                if (i.offset + i.h < shadowStart || i.offset > shadowEnd) {
+                    i.unused = true;
+                }
+                return i.unused !== true
+            })
+            .sort((a, b) => a.index - b.index);
 
-        if (used.length > 0) {
-            used = used.sort((a, b) => a.index - b.index);
-            if (used[used.length - 1].index < shadowEnd) {
-                let prev = used[used.length - 1];
-                let lastUsedIndex = prev.index;
-                for (let i = lastUsedIndex + 1; i <= Math.min(shadowEnd, this.items.length - 1); i++) {
-                    prev = this.renderItem(i, unused.pop(), prev);
+        // check items height and offset
+        let firstVisible = used.findIndex(i => i.offset >= visibleStart && i.offset < visibleEnd);
+        if (firstVisible >= 0 ) {
+            // fix forward
+            for (let i = firstVisible + 1; i < used.length && used[i].offset < shadowEnd; i++) {
+                const newHeight = calcNodesRect(used[i-1].ctx._ti._nodes).height;
+                if (used[i-1].h !== newHeight) used[i-1].h = newHeight;
+                if (used[i-1].offset + newHeight !== used[i].offset) {
+                    used[i].offset = used[i-1].offset + newHeight;
+                    fixOffset(used[i]);
                 }
             }
-            if (used[0].index > shadowBegin) {
-                let prev = used[0];
-                let lastUsedIndex = prev.index;
-                for (let i = lastUsedIndex - 1; i >= shadowBegin; i--) {
-                    prev = this.renderItem(i, unused.pop(), prev, true);
+            // fix last height
+            const last = used[used.length - 1];
+            last.h = calcNodesRect(last.ctx._ti._nodes).height;
+            // fix backward
+            for (let i = firstVisible - 1; i >= 0 && used[i].offset > shadowStart; i--) {
+                const newHeight = calcNodesRect(used[i].ctx._ti._nodes).height;
+                if (used[i].h !== newHeight) used[i].h = newHeight;
+                if (used[i].offset + newHeight !== used[i+1].offset) {
+                    used[i].offset = used[i+1].offset - newHeight;
+                    fixOffset(used[i]);
                 }
             }
-        } else if (shadowBegin >= 0 && this.items.length > 0) {
-            let prev = this.renderItem(shadowBegin, unused.pop(), shadowBegin * this.elementHeight);
-            for (let i = shadowBegin + 1; i <= shadowEnd; i++) {
-                prev = this.renderItem(i, unused.pop(), prev);
+            used = used
+                .filter(i => {
+                    if (i.offset + i.h < shadowStart || i.offset > shadowEnd) {
+                        i.unused = true;
+                    }
+                    return i.unused !== true
+                })
+                .sort((a, b) => a.index - b.index);
+        }
+
+        // filter
+
+        let unused = this.phyPool.filter(i => i.unused);
+
+        let forwardIndex = 0;
+
+        let firstShadow = used.find(i => i.offset + i.h > shadowStart && i.offset < shadowEnd);
+        let lastShadow = used.findLast(i => i.offset < shadowEnd && i.offset + i.h > shadowStart);
+
+        if (!firstShadow && !lastShadow) {
+            //TODO: jump to nowhere,
+            if (this.canvas.parentNode.scrollTop === 0 )firstShadow = lastShadow = this.renderItem(0, unused.pop());
+            else console.log('jump to nowhere')
+        }
+
+        // render forward
+        while (
+            lastShadow.offset + lastShadow.h < shadowEnd && // последний нарисованный не дотягивает до конца окна рисования
+            lastShadow.index < this.items.length - 1 // при этом данные еще не кончились
+            ) {
+            lastShadow = this.renderItem(lastShadow ? lastShadow.index + 1 : 0, unused.pop(), lastShadow);
+            used.push(lastShadow);
+        }
+
+        // render backward
+        while (
+            firstShadow.offset > shadowStart && // последний нарисованный не дотягивает до конца окна рисования
+            firstShadow.index > 0 // при этом данные еще не кончились
+            ) {
+            firstShadow = this.renderItem(firstShadow.index - 1, unused.pop(), firstShadow, true);
+            used.unshift(firstShadow);
+        }
+
+        // move unused to invisible place
+        unused.forEach(i => {
+            i.offset = -10000;
+            fixOffset(i);
+        });
+
+        //TODO: calc offset and canvas size
+        const avgHeight = used.reduce((a, i) => a + i.h, 0) / used.length;
+
+
+        if (lastShadow && !isNaN(avgHeight) && isFinite(avgHeight)) {
+            const
+                lastRenderedPixel = lastShadow.offset + lastShadow.h,
+                restRows = this.items.length - lastShadow.index - 1,
+                currentHeight = canvas.offsetHeight,
+                predictedHeight = lastRenderedPixel + restRows * avgHeight;
+
+            if (Math.abs(predictedHeight - currentHeight) > restRows/10 * avgHeight) {
+                canvas.style.setProperty('height', predictedHeight + 'px');
+                //console.log(avgHeight, currentHeight, predictedHeight, restRows)
             }
         }
 
-        unused.forEach(u => {
-            u.index = null;
-            u.ctx._ti._nodes.forEach(i => { if (i.style) i.style.transform = `translateY(-1000px)`; });
-        });
+        if ( firstShadow && !isNaN(avgHeight) && isFinite(avgHeight)) {
+            const
+                firstRenderedPixel = firstShadow.offset,
+                restRows = firstShadow.index,
+                currentOffset = this.canvas.parentNode.scrollTop,
+                predictedOffset = firstRenderedPixel - restRows * avgHeight;
 
-        // fill .5 height window in background
-        // while phy window not filed, expect +-.5 screen
-        // render must begin from visible start forward, then backward to .5 s/h
-
-
-        if (this.elementHeight && this.items.length)
-            canvas.style.setProperty('height', this.elementHeight * this.items.length + 'px')
-        else
-            canvas.style.setProperty('height', 0)
+            if (Math.abs(predictedOffset) > restRows/10 * avgHeight) {
+                //console.log(predictedOffset, currentOffset, firstRenderedPixel, restRows, avgHeight);
+                this.canvas.parentNode.scrollTop -= predictedOffset;
+                used.forEach(i => {
+                    i.offset -= predictedOffset;
+                    fixOffset(i);
+                })
+            }
+        }
     }
 
     /**
      *
      * @param index
      * @param {VirtualScrollItem} p_item
-     * @param prev
+     * @param [prev]
      * @param [backward]
      * @return {VirtualScrollItem}
      */
@@ -224,15 +291,18 @@ class PlVirtualScroll extends PlElement {
             p_item.ctx.replace(this.items[index])
             p_item.ctx._ti.applyBinds();
             p_item.ctx.applyEffects();
+            p_item.h = calcNodesRect(p_item.ctx._ti._nodes).height;
+            p_item.unused = false;
         } else {
             this.phyPool.push(target);
         }
+        prev ??= 0;
         target.offset = typeof (prev) == 'number' ? prev : (backward ? prev.offset - target.h : prev.offset + prev.h);
         target.ctx._ti._nodes.forEach(n => {
             if (n.style) {
                 n.style.transform = `translateY(${target.offset}px)`;
                 n.style.position = 'absolute';
-                n.setAttribute('virtualOffset', target.offset);
+                //n.setAttribute('virtualOffset', target.offset);
             }
         });
         return target;
@@ -244,7 +314,7 @@ class PlVirtualScroll extends PlElement {
         let ctx = new RepeatItem(v, this.as, (ctx, m) => this.onItemChanged(ctx, m) );
         ctx._ti = inst
         inst.attach(this.canvas, undefined, [ctx, ...this._hctx ]);
-        let h = this.elementHeight ??  calcNodesRect(inst._nodes).height;
+        let h = /*this.elementHeight ?? */ calcNodesRect(inst._nodes).height;
 
         return { ctx, h };
     }
@@ -279,6 +349,14 @@ class RepeatItem extends ContextMixin(EventTarget) {
         this[this.as] = v;
         this.wmh = {};
     }
+}
+
+function fixOffset(item) {
+    item.ctx._ti._nodes.forEach(n => {
+        if (n.style) {
+            n.style.transform = `translateY(${item.offset}px)`;
+        }
+    });
 }
 
 function calcNodesRect(nodes) {
