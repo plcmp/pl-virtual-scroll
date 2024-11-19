@@ -198,15 +198,22 @@ class PlVirtualScroll extends PlElement {
 
         let unused = this.phyPool.filter(i => i.unused);
 
-        let forwardIndex = 0;
-
         let firstShadow = used.find(i => i.offset + i.h > shadowStart && i.offset < shadowEnd);
         let lastShadow = used.findLast(i => i.offset < shadowEnd && i.offset + i.h > shadowStart);
 
         if (!firstShadow && !lastShadow) {
             //TODO: jump to nowhere,
-            if (this.canvas.parentNode.scrollTop === 0 )firstShadow = lastShadow = this.renderItem(0, unused.pop());
-            else console.log('jump to nowhere')
+            if (this.canvas.parentNode.scrollTop === 0 )
+                firstShadow = lastShadow = this.renderItem(0, unused.pop());
+            else {
+                console.log('jump to nowhere')
+                const heightForStart =
+                    this.phyPool.length > 0 ?
+                        this.phyPool.reduce((a, i) => a + i.h, 0) / this.phyPool.length :
+                        32 // ????
+                const predictedStart = Math.min(Math.ceil(this.canvas.parentNode.scrollTop / heightForStart), this.items.length - 1);
+                firstShadow = lastShadow = this.renderItem(predictedStart, unused.pop(), this.canvas.parentNode.scrollTop);
+            }
         }
 
         // render forward
@@ -233,7 +240,8 @@ class PlVirtualScroll extends PlElement {
             fixOffset(i);
         });
 
-        //TODO: calc offset and canvas size
+        // calc offset and canvas size
+        // TODO: reduce scroll jump
         const avgHeight = used.reduce((a, i) => a + i.h, 0) / used.length;
 
 
@@ -246,7 +254,6 @@ class PlVirtualScroll extends PlElement {
 
             if (Math.abs(predictedHeight - currentHeight) > restRows/10 * avgHeight) {
                 canvas.style.setProperty('height', predictedHeight + 'px');
-                //console.log(avgHeight, currentHeight, predictedHeight, restRows)
             }
         }
 
@@ -254,16 +261,14 @@ class PlVirtualScroll extends PlElement {
             const
                 firstRenderedPixel = firstShadow.offset,
                 restRows = firstShadow.index,
-                currentOffset = this.canvas.parentNode.scrollTop,
                 predictedOffset = firstRenderedPixel - restRows * avgHeight;
 
             if (Math.abs(predictedOffset) > restRows/10 * avgHeight) {
-                //console.log(predictedOffset, currentOffset, firstRenderedPixel, restRows, avgHeight);
-                this.canvas.parentNode.scrollTop -= predictedOffset;
                 used.forEach(i => {
                     i.offset -= predictedOffset;
                     fixOffset(i);
                 })
+                this.canvas.parentNode.scrollTop -= predictedOffset;
             }
         }
     }
