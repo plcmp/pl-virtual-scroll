@@ -138,8 +138,10 @@ class PlVirtualScroll extends PlElement {
         let visibleStart = canvas.parentNode.scrollTop,
             height = canvas.parentNode.offsetHeight,
             visibleEnd = visibleStart + height,
-            shadowStart = visibleStart - height/2,
-            shadowEnd = visibleEnd + height/2;
+            // render cant complete on too small window, set minimal shadow window
+            shadowSize = Math.max(height/2, 500),
+            shadowStart = visibleStart - shadowSize,
+            shadowEnd = visibleEnd + shadowSize;
 
         // cancel render on invisible canvas or empty data
         if (height === 0 || !this.items || this.items.length === 0) {
@@ -203,7 +205,6 @@ class PlVirtualScroll extends PlElement {
             if (this.canvas.parentNode.scrollTop === 0 )
                 firstShadow = lastShadow = this.renderItem(0, unused.pop());
             else {
-                console.log('jump to nowhere')
                 const heightForStart =
                     this.phyPool.length > 0 ?
                         this.phyPool.reduce((a, i) => a + i.h, 0) / this.phyPool.length :
@@ -316,6 +317,10 @@ class PlVirtualScroll extends PlElement {
         ctx._ti = inst
         inst.attach(this.canvas, undefined, [ctx, ...this._hctx ]);
         let h = !this.variableRowHeight && this.elementHeight ? this.elementHeight : calcNodesRect(inst._nodes).height;
+
+        if (!this.variableRowHeight && !this.elementHeight) {
+            this.elementHeight = h;
+        }
 
         return { ctx, h };
     }
