@@ -6,15 +6,16 @@ import {normalizePath} from "polylib/common.js";
 /** @typedef VirtualScrollItem
  * @property { RepeatItem } ctx
  * @property { TemplateInstance } ti
- * @property { number } index
+ * @property { number | null } index
  * @property { number } h - height of rendered item
- * @property { boolean } unused
  * @property { number } offset
 */
 
 class PlVirtualScroll extends PlElement {
     /** @type VirtualScrollItem[]*/
     phyPool = [];
+    /** @type {number | undefined} */
+    elementHeight;
 
     constructor() {
         super({ lightDom: true });
@@ -23,10 +24,10 @@ class PlVirtualScroll extends PlElement {
     static properties = {
         as: { value: 'item' },
         items: { type: Array, observer: '_dataChanged' },
-        renderedStart: { type: Number, value: 0 },
-        renderedCount: { type: Number, value: 0 },
         phyItems: { type: Array, value: () => [] },
-        canvas: { type: Object }
+        canvas: { type: Object },
+        variableRowHeight: { type: Boolean, value: false },
+        rowHeight: { type: Number },
     }
     static template = html`
         <style>
@@ -64,17 +65,9 @@ class PlVirtualScroll extends PlElement {
         let tplEl = [...this.childNodes].find( n => n.nodeType === document.COMMENT_NODE && n.textContent.startsWith('tpl:'));
         this.sTpl = tplEl?._tpl;
         this._hctx = tplEl?._hctx;
-
-       /* let ti = new TemplateInstance(PlVirtualScroll.repTpl);
-        ti.attach(canvas, this, this);
-*/
-        /* render items if them already assigned */
-        /*if (Array.isArray(this.items) && this.items.length > 0) {
-            this.render();
-        }*/
     }
 
-    _dataChanged(data, old, mutation) {
+    _dataChanged(data, old, /** DataMutation */ mutation) {
         // set microtask, element may be not inserted in dom tree yet,
         // but we need to know viewport height to render
         let [, index, ...rest] = normalizePath(mutation.path);
@@ -86,7 +79,7 @@ class PlVirtualScroll extends PlElement {
                             if (this.items[i.index] instanceof PlaceHolder) this.items.load?.(this.items[i.index]);
 
                             i.ctx.replace(this.items[i.index]);
-                            i.ctx.applyEffects();
+                            i.ctx.applyEffects(undefined);
                             i.ctx._ti.applyBinds();
                         } else if (i.index >= this.items.length) {
                             i.index = null;
@@ -107,7 +100,7 @@ class PlVirtualScroll extends PlElement {
                 break;
             case 'splice':
                 let { index: spliceIndex } = mutation;
-                // if mutation is not root try to apply effects to childs (need when pushing to arrya inside array)
+                // if mutation is not root try to apply effects to children (need when pushing to array inside array)
                 if(rest.length > 0) {
                     let path = [this.as, ...rest].join('.');
                     this.phyPool[index].ctx.applyEffects({ ...mutation, path });
@@ -117,7 +110,7 @@ class PlVirtualScroll extends PlElement {
                             if (this.items[i.index] instanceof PlaceHolder) this.items.load?.(this.items[i.index]);
                             
                             i.ctx.replace(this.items[i.index]);
-                            i.ctx.applyEffects();
+                            i.ctx.applyEffects(undefined);
                             i.ctx._ti.applyBinds();
                         } else if (i.index >= this.items.length) {
                             i.index = null;
@@ -149,54 +142,58 @@ class PlVirtualScroll extends PlElement {
             shadowEnd = visibleEnd + height/2;
 
         // cancel render on invisible canvas or empty data
-        if (height === 0 || !this.items || this.items.length === 0) return;
+        if (height === 0 || !this.items || this.items.length === 0) {
+            canvas.style.setProperty('height', 0);
+            return;
+        }
 
         let used = this.phyPool
             .filter(i => {
                 if (i.offset + i.h < shadowStart || i.offset > shadowEnd) {
-                    i.unused = true;
+                    i.index = null;
                 }
-                return i.unused !== true
+                return i.index !== null
             })
             .sort((a, b) => a.index - b.index);
 
         // check items height and offset
-        let firstVisible = used.findIndex(i => i.offset >= visibleStart && i.offset < visibleEnd);
-        if (firstVisible >= 0 ) {
-            // fix forward
-            for (let i = firstVisible + 1; i < used.length && used[i].offset < shadowEnd; i++) {
-                const newHeight = calcNodesRect(used[i-1].ctx._ti._nodes).height;
-                if (used[i-1].h !== newHeight) used[i-1].h = newHeight;
-                if (used[i-1].offset + newHeight !== used[i].offset) {
-                    used[i].offset = used[i-1].offset + newHeight;
-                    fixOffset(used[i]);
-                }
-            }
-            // fix last height
-            const last = used[used.length - 1];
-            last.h = calcNodesRect(last.ctx._ti._nodes).height;
-            // fix backward
-            for (let i = firstVisible - 1; i >= 0 && used[i].offset > shadowStart; i--) {
-                const newHeight = calcNodesRect(used[i].ctx._ti._nodes).height;
-                if (used[i].h !== newHeight) used[i].h = newHeight;
-                if (used[i].offset + newHeight !== used[i+1].offset) {
-                    used[i].offset = used[i+1].offset - newHeight;
-                    fixOffset(used[i]);
-                }
-            }
-            used = used
-                .filter(i => {
-                    if (i.offset + i.h < shadowStart || i.offset > shadowEnd) {
-                        i.unused = true;
+        if (this.variableRowHeight) {
+            let firstVisible = used.findIndex(i => i.offset >= visibleStart && i.offset < visibleEnd);
+            if (firstVisible >= 0) {
+                // fix forward
+                for (let i = firstVisible + 1; i < used.length && used[i].offset < shadowEnd; i++) {
+                    const newHeight = calcNodesRect(used[i - 1].ctx._ti._nodes).height;
+                    if (used[i - 1].h !== newHeight) used[i - 1].h = newHeight;
+                    if (used[i - 1].offset + newHeight !== used[i].offset) {
+                        used[i].offset = used[i - 1].offset + newHeight;
+                        fixOffset(used[i]);
                     }
-                    return i.unused !== true
-                })
-                .sort((a, b) => a.index - b.index);
+                }
+                // fix last height
+                const last = used[used.length - 1];
+                last.h = calcNodesRect(last.ctx._ti._nodes).height;
+                // fix backward
+                for (let i = firstVisible - 1; i >= 0 && used[i].offset > shadowStart; i--) {
+                    const newHeight = calcNodesRect(used[i].ctx._ti._nodes).height;
+                    if (used[i].h !== newHeight) used[i].h = newHeight;
+                    if (used[i].offset + newHeight !== used[i + 1].offset) {
+                        used[i].offset = used[i + 1].offset - newHeight;
+                        fixOffset(used[i]);
+                    }
+                }
+                used = used
+                    .filter(i => {
+                        if (i.offset + i.h < shadowStart || i.offset > shadowEnd) {
+                            i.index = null;
+                        }
+                        return i.index !== null;
+                    })
+                    .sort((a, b) => a.index - b.index);
+            }
         }
-
         // filter
 
-        let unused = this.phyPool.filter(i => i.unused);
+        let unused = this.phyPool.filter(i => i.index === null);
 
         let firstShadow = used.find(i => i.offset + i.h > shadowStart && i.offset < shadowEnd);
         let lastShadow = used.findLast(i => i.offset < shadowEnd && i.offset + i.h > shadowStart);
@@ -210,7 +207,7 @@ class PlVirtualScroll extends PlElement {
                 const heightForStart =
                     this.phyPool.length > 0 ?
                         this.phyPool.reduce((a, i) => a + i.h, 0) / this.phyPool.length :
-                        32 // ????
+                        32 // TODO: replace w/o constant
                 const predictedStart = Math.min(Math.ceil(this.canvas.parentNode.scrollTop / heightForStart), this.items.length - 1);
                 firstShadow = lastShadow = this.renderItem(predictedStart, unused.pop(), this.canvas.parentNode.scrollTop);
             }
@@ -295,9 +292,8 @@ class PlVirtualScroll extends PlElement {
         if (p_item) {
             p_item.ctx.replace(this.items[index])
             p_item.ctx._ti.applyBinds();
-            p_item.ctx.applyEffects();
-            p_item.h = calcNodesRect(p_item.ctx._ti._nodes).height;
-            p_item.unused = false;
+            p_item.ctx.applyEffects(undefined);
+            if (!this.variableRowHeight) p_item.h = calcNodesRect(p_item.ctx._ti._nodes).height;
         } else {
             this.phyPool.push(target);
         }
@@ -319,7 +315,7 @@ class PlVirtualScroll extends PlElement {
         let ctx = new RepeatItem(v, this.as, (ctx, m) => this.onItemChanged(ctx, m) );
         ctx._ti = inst
         inst.attach(this.canvas, undefined, [ctx, ...this._hctx ]);
-        let h = /*this.elementHeight ?? */ calcNodesRect(inst._nodes).height;
+        let h = !this.variableRowHeight && this.elementHeight ? this.elementHeight : calcNodesRect(inst._nodes).height;
 
         return { ctx, h };
     }
