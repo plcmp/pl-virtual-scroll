@@ -114,6 +114,8 @@ class PlVirtualScroll extends PlElement {
                             i.ctx._ti.applyBinds();
                         } else if (i.index >= this.items.length) {
                             i.index = null;
+                            i.offset = -10000;
+                            fixOffset(i);
                         }
                     });
                 }
