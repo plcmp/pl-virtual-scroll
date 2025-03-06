@@ -211,6 +211,7 @@ class PlVirtualScroll extends PlElement {
                         : 32; // TODO: replace w/o constant
                 const predictedStart = Math.min(Math.ceil(this.canvas.parentNode.scrollTop / heightForStart), this.items.length - 1);
                 firstShadow = lastShadow = this.renderItem(predictedStart, unused.pop(), this.canvas.parentNode.scrollTop);
+                used.unshift(firstShadow);
             }
         }
 
