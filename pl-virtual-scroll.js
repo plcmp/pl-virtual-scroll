@@ -252,6 +252,9 @@ class PlVirtualScroll extends PlElement {
 
             if (Math.abs(predictedHeight - currentHeight) > restRows / 10 * avgHeight) {
                 canvas.style.setProperty('height', predictedHeight + 'px');
+                if (predictedHeight - currentHeight > avgHeight) {
+                    setTimeout(() => this.render(), 0);
+                }
             }
         }
 
