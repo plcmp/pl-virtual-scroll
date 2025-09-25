@@ -1,6 +1,6 @@
 {
     "name": "@plcmp/pl-virtual-scroll",
-    "version": "1.0.4",
+    "version": "1.0.5",
     "description": "Component for lazy list render.",
     "main": "pl-virtual-scroll.js",
     "repository": {
