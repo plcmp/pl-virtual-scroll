@@ -64,7 +64,7 @@ class PlVirtualScroll extends PlElement {
 
         this.canvas = this.canvas ?? this.$.vsCanvas;
         this.canvas.parentNode.addEventListener('scroll', e => this.onScroll(e));
-        let tplEl = [...this.childNodes].find(n => n.nodeType === document.COMMENT_NODE && n.textContent.startsWith('tpl:'));
+        const tplEl = [...this.childNodes].find(n => n.nodeType === document.COMMENT_NODE && n.textContent.startsWith('tpl:'));
         this.sTpl = tplEl?._tpl;
         this._hctx = tplEl?._hctx;
     }
@@ -72,7 +72,7 @@ class PlVirtualScroll extends PlElement {
     _dataChanged(data, old, /** DataMutation */ mutation) {
         // set microtask, element may be not inserted in dom tree yet,
         // but we need to know viewport height to render
-        let [, index, ...rest] = normalizePath(mutation.path);
+        const [, index, ...rest] = normalizePath(mutation.path);
         switch (mutation.action) {
             case 'upd':
                 if (mutation.path === 'items' && Array.isArray(mutation.value) && Array.isArray(mutation.oldValue)) {
@@ -90,9 +90,9 @@ class PlVirtualScroll extends PlElement {
                 }
 
                 if (index !== undefined && +index >= 0) {
-                    let el = this.phyPool.find(i => i.index === +index);
+                    const el = this.phyPool.find(i => i.index === +index);
                     if (el && rest.length > 0) {
-                        let path = [this.as, ...rest].join('.');
+                        const path = [this.as, ...rest].join('.');
                         el.ctx.applyEffects({ ...mutation, path });
                         if (this.items[el.index] instanceof PlaceHolder) this.items.load?.(this.items[el.index]);
                     }
@@ -106,8 +106,8 @@ class PlVirtualScroll extends PlElement {
                 if (Number(spliceIndex) >= 0) {
                     // if mutation is not root try to apply effects to children (need when pushing to array inside array)
                     if (rest.length > 0) {
-                        let path = [this.as, ...rest].join('.');
-                        this.phyPool[index].ctx.applyEffects({...mutation, path});
+                        const path = [this.as, ...rest].join('.');
+                        this.phyPool[index].ctx.applyEffects({ ...mutation, path });
                     } else {
                         this.phyPool.forEach((i) => {
                             if (i.index !== null && i.index >= spliceIndex && i.index < this.items.length) {
@@ -138,7 +138,7 @@ class PlVirtualScroll extends PlElement {
 
     render() {
         const canvas = this.canvas;
-        let visibleStart = canvas.parentNode.scrollTop,
+        const visibleStart = canvas.parentNode.scrollTop,
             height = canvas.parentNode.offsetHeight,
             visibleEnd = visibleStart + height,
             // render cant complete on too small window, set minimal shadow window
@@ -163,7 +163,7 @@ class PlVirtualScroll extends PlElement {
 
         // check items height and offset
         if (this.variableRowHeight) {
-            let firstVisible = used.findIndex(i => i.offset >= visibleStart && i.offset < visibleEnd);
+            const firstVisible = used.findIndex(i => i.offset >= visibleStart && i.offset < visibleEnd);
             if (firstVisible >= 0) {
                 // fix forward
                 for (let i = firstVisible + 1; i < used.length && used[i].offset < shadowEnd; i++) {
@@ -198,16 +198,16 @@ class PlVirtualScroll extends PlElement {
         }
         // filter
 
-        let unused = this.phyPool.filter(i => i.index === null);
+        const unused = this.phyPool.filter(i => i.index === null);
 
         let firstShadow = used.find(i => i.offset + i.h > shadowStart && i.offset < shadowEnd);
         let lastShadow = used.findLast(i => i.offset < shadowEnd && i.offset + i.h > shadowStart);
 
         if (!firstShadow && !lastShadow) {
             // jump to nowhere,
-            if (this.canvas.parentNode.scrollTop === 0)
+            if (this.canvas.parentNode.scrollTop === 0) {
                 firstShadow = lastShadow = this.renderItem(0, unused.pop());
-            else {
+            } else {
                 const heightForStart
                     = this.phyPool.length > 0
                         ? this.phyPool.reduce((a, i) => a + i.h, 0) / this.phyPool.length
@@ -294,7 +294,7 @@ class PlVirtualScroll extends PlElement {
             return p_item;
         }
         if (this.items[index] instanceof PlaceHolder) this.items.load?.(this.items[index]);
-        let target = p_item ?? this.createNewItem(this.items[index]);
+        const target = p_item ?? this.createNewItem(this.items[index]);
 
         target.index = index;
         if (p_item) {
@@ -306,7 +306,7 @@ class PlVirtualScroll extends PlElement {
             this.phyPool.push(target);
         }
         prev ??= 0;
-        target.offset = typeof (prev) == 'number' ? prev : (backward ? prev.offset - target.h : prev.offset + prev.h);
+        target.offset = typeof (prev) === 'number' ? prev : (backward ? prev.offset - target.h : prev.offset + prev.h);
         target.ctx._ti._nodes.forEach((n) => {
             if (n.style) {
                 n.style.transform = `translateY(${target.offset}px)`;
@@ -318,12 +318,12 @@ class PlVirtualScroll extends PlElement {
 
     createNewItem(v) {
         if (!this.sTpl) return;
-        let inst = new TemplateInstance(this.sTpl);
+        const inst = new TemplateInstance(this.sTpl);
 
-        let ctx = new RepeatItem(v, this.as, (ctx, m) => this.onItemChanged(ctx, m));
+        const ctx = new RepeatItem(v, this.as, (ctx, m) => this.onItemChanged(ctx, m));
         ctx._ti = inst;
         inst.attach(this.canvas, undefined, [ctx, ...this._hctx]);
-        let h = !this.variableRowHeight && this.elementHeight ? this.elementHeight : calcNodesRect(inst._nodes).height;
+        const h = !this.variableRowHeight && this.elementHeight ? this.elementHeight : calcNodesRect(inst._nodes).height;
 
         if (!this.variableRowHeight && !this.elementHeight) {
             this.elementHeight = h;
@@ -339,7 +339,7 @@ class PlVirtualScroll extends PlElement {
     onItemChanged(ctx, m) {
         // skip replace data call
         if (!m) return;
-        let ind = this.items.findIndex(i => i === ctx[this.as]);
+        const ind = this.items.findIndex(i => i === ctx[this.as]);
         if (ind < 0) console.warn('repeat item not found');
         if (m.path === this.as) {
             this.set(['items', ind], m.value, m.wmh);
@@ -377,7 +377,7 @@ function fixOffset(item) {
 
 function calcNodesRect(nodes) {
     nodes = nodes.filter(n => n.getBoundingClientRect);
-    let rect = nodes[0].getBoundingClientRect();
+    const rect = nodes[0].getBoundingClientRect();
     let { top, bottom, left, right } = rect;
     ({ top, bottom, left, right } = nodes.map(n => n.getBoundingClientRect())
         .filter(i => i)
@@ -387,9 +387,9 @@ function calcNodesRect(nodes) {
                 bottom: Math.max(a.bottom, c.bottom),
                 left: Math.min(a.left, c.left),
                 right: Math.max(a.right, c.right)
-            })
-        , { top, bottom, left, right }));
-    let { x, y, height, width } = { x: left, y: top, width: right - left, height: bottom - top };
+            }),
+        { top, bottom, left, right }));
+    const { x, y, height, width } = { x: left, y: top, width: right - left, height: bottom - top };
     return { x, y, height, width };
 }
 
