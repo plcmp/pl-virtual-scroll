@@ -77,14 +77,18 @@ class PlVirtualScroll extends PlElement {
             case 'upd':
                 if (mutation.path === 'items' && Array.isArray(mutation.value) && Array.isArray(mutation.oldValue)) {
                     this.phyPool.forEach((i) => {
-                        if (i.index !== null && i.index < this.items.length) {
-                            if (this.items[i.index] instanceof PlaceHolder) this.items.load?.(this.items[i.index]);
+                        if (i.index !== null) {
+                            if (i.index < this.items.length) {
+                                if (this.items[i.index] instanceof PlaceHolder) this.items.load?.(this.items[i.index]);
 
-                            i.ctx.replace(this.items[i.index]);
-                            i.ctx.applyEffects(undefined);
-                            i.ctx._ti.applyBinds();
-                        } else if (i.index >= this.items.length) {
-                            i.index = null;
+                                i.ctx.replace(this.items[i.index]);
+                                i.ctx.applyEffects(undefined);
+                                i.ctx._ti.applyBinds();
+                            } else {
+                                i.index = null;
+                                i.offset = -10000;
+                                fixOffset(i);
+                            }
                         }
                     });
                 }
